@@ -1,17 +1,34 @@
 import joblib
+import mlflow
 import numpy as np
 import pandas as pd
+from mlflow.entities import SpanType
 
 from model_training.train_experiments import run_experiments, train_best_model
 
 
-def test_run_experiments_tracks_parameters_and_metrics(capsys):
+def test_run_experiments_tracks_parameters_and_metrics(capsys, tmp_path):
     X_train = np.array([[0.0], [1.0], [2.0], [3.0]])
     y_train = np.array([1.0, 3.0, 5.0, 7.0])
     X_test = np.array([[4.0], [5.0]])
     y_test = np.array([9.0, 11.0])
 
-    results = run_experiments(X_train, X_test, y_train, y_test)
+    previous_tracking_uri = mlflow.get_tracking_uri()
+    try:
+        mlflow.set_tracking_uri(f"sqlite:///{tmp_path / 'mlflow.db'}")
+        mlflow.set_experiment("training-experiment-tests")
+        traced_run_experiments = mlflow.trace(
+            run_experiments,
+            name="run_experiments",
+            span_type=SpanType.CHAIN,
+        )
+        results = traced_run_experiments(X_train, X_test, y_train, y_test)
+        trace_id = mlflow.get_last_active_trace_id()
+        mlflow.flush_trace_async_logging()
+        trace = mlflow.get_trace(trace_id) if trace_id else None
+    finally:
+        mlflow.set_tracking_uri(previous_tracking_uri)
+
     output = capsys.readouterr().out
 
     assert len(results) == 3
@@ -23,6 +40,13 @@ def test_run_experiments_tracks_parameters_and_metrics(capsys):
     assert "parameters:" in output
     assert "coefficients:" in output
     assert "test_r_squared:" in output
+    assert trace is not None
+    experiment_spans = [
+        span for span in trace.data.spans if span.name == "run_experiments"
+    ]
+    assert experiment_spans
+    assert experiment_spans[0].inputs is not None
+    assert experiment_spans[0].outputs is not None
 
 
 def test_train_best_model_saves_the_lowest_mse_model(tmp_path):

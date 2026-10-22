@@ -1,4 +1,5 @@
 import os
+import json
 
 import numpy as np
 import pandas as pd
@@ -26,6 +27,40 @@ def test_evaluate_regression_model_returns_metrics():
 		"model_name": "Dummy",
 		"test_mean_squared_error": 5.0,
 		"test_r_squared": -4.0,
+	}
+
+
+def test_write_evaluation_report_saves_json_with_named_coefficients(tmp_path):
+	model = LinearRegression().fit([[0, 1], [1, 0]], [1, 3])
+	metrics = {
+		"model_name": "Scikit-Learn OLS",
+		"test_mean_squared_error": 0.0,
+		"test_r_squared": 1.0,
+	}
+	report_path = tmp_path / "reports" / "baseline.json"
+
+	report = baseline_model.write_evaluation_report(
+		model,
+		metrics,
+		["bill", "size"],
+		(2, 2),
+		(1, 2),
+		0.2,
+		42,
+		report_path,
+	)
+
+	with report_path.open(encoding="utf-8") as report_file:
+		saved_report = json.load(report_file)
+	assert saved_report == report
+	assert report["features"] == ["bill", "size"]
+	assert report["model"]["standardized_coefficients"] == {
+		"bill": float(model.coef_[0]),
+		"size": float(model.coef_[1]),
+	}
+	assert report["metrics"] == {
+		"test_mean_squared_error": 0.0,
+		"test_r_squared": 1.0,
 	}
 
 
