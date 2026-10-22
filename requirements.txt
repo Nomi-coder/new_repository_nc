@@ -7,3 +7,4 @@ matplotlib
 statsmodels
 pytest
 mlflow
+python-dotenv

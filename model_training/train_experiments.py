@@ -1,12 +1,16 @@
 import json
+import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import joblib
+import mlflow
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import statsmodels.api as sm
+from mlflow.entities import SpanType
+from dotenv import load_dotenv
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
@@ -20,8 +24,12 @@ EXPERIMENTS = (
     {"fit_intercept": True, "positive": True},
 )
 ARTIFACT_PATH = Path("artifacts/best_model.joblib")
+RESULTS_PATH = Path("artifacts/experiment_results.json")
+MLFLOW_EXPERIMENT_NAME = "training-experiments"
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
+@mlflow.trace(name="run_experiments", span_type=SpanType.CHAIN)
 def run_experiments(
     X_train: np.ndarray,
     X_test: np.ndarray,
@@ -62,6 +70,7 @@ def run_experiments(
     return results
 
 
+@mlflow.trace(name="train_best_model", span_type=SpanType.CHAIN)
 def train_best_model(
     X: pd.DataFrame,
     y: np.ndarray,
@@ -99,35 +108,104 @@ def train_best_model(
     return artifact
 
 
+@mlflow.trace(name="training_pipeline", span_type=SpanType.CHAIN)
 def main() -> None:
     np.random.seed(42)
 
-    tips = sns.load_dataset("tips")
-    df = pd.get_dummies(tips, drop_first=True)
-    X = df.drop(columns=["tip"])
-    y = df["tip"].values
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+    if tracking_uri:
+        mlflow.set_tracking_uri(tracking_uri)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
+    if "MLFLOW_EXPERIMENT_ID" not in os.environ:
+        mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    with mlflow.start_run(run_name="linear-regression-experiments"):
+        tips = sns.load_dataset("tips")
+        df = pd.get_dummies(tips, drop_first=True)
+        X = df.drop(columns=["tip"])
+        y = df["tip"].values
 
-    metadata = {
-        "train_shape": X_train_scaled.shape,
-        "test_shape": X_test_scaled.shape,
-        "num_features": X_train_scaled.shape[1],
-    }
-    print(f"Pipeline Data Diagnostics: {metadata}")
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
 
-    X_train_sm = sm.add_constant(X_train_scaled)
-    model_sm = sm.OLS(y_train, X_train_sm).fit()
-    print(model_sm.summary())
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
 
-    results = run_experiments(X_train_scaled, X_test_scaled, y_train, y_test)
-    train_best_model(X, y, results)
+        metadata = {
+            "train_shape": list(X_train_scaled.shape),
+            "test_shape": list(X_test_scaled.shape),
+            "num_features": X_train_scaled.shape[1],
+        }
+        print(f"Pipeline Data Diagnostics: {metadata}")
+        mlflow.log_params(
+            {
+                "train_rows": metadata["train_shape"][0],
+                "test_rows": metadata["test_shape"][0],
+                "num_features": metadata["num_features"],
+                "test_size": 0.2,
+                "random_state": 42,
+            }
+        )
+
+        X_train_sm = sm.add_constant(X_train_scaled)
+        model_sm = sm.OLS(y_train, X_train_sm).fit()
+        ols_summary = str(model_sm.summary())
+        print(ols_summary)
+
+        results = run_experiments(X_train_scaled, X_test_scaled, y_train, y_test)
+        best_experiment = min(
+            results, key=lambda result: result["test_mean_squared_error"]
+        )
+        for result in results:
+            experiment_number = result["experiment"]
+            mlflow.log_params(
+                {
+                    f"experiment_{experiment_number}_{name}": value
+                    for name, value in result["parameters"].items()
+                }
+            )
+            mlflow.log_metrics(
+                {
+                    f"experiment_{experiment_number}_test_mean_squared_error": (
+                        result["test_mean_squared_error"]
+                    ),
+                    f"experiment_{experiment_number}_test_r_squared": (
+                        result["test_r_squared"]
+                    ),
+                }
+            )
+
+        mlflow.log_metrics(
+            {
+                "best_test_mean_squared_error": best_experiment[
+                    "test_mean_squared_error"
+                ],
+                "best_test_r_squared": best_experiment["test_r_squared"],
+            }
+        )
+        artifact = train_best_model(X, y, results, artifact_path=ARTIFACT_PATH)
+        mlflow.log_params(
+            {
+                f"best_{name}": value
+                for name, value in artifact["parameters"].items()
+            }
+        )
+
+        report = {
+            "data": metadata,
+            "experiments": results,
+            "best_experiment": best_experiment,
+            "best_model_parameters": artifact["parameters"],
+            "best_model_artifact": str(ARTIFACT_PATH),
+            "ols_summary": ols_summary,
+        }
+        RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RESULTS_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        mlflow.log_artifact(str(RESULTS_PATH))
+        mlflow.log_artifact(str(ARTIFACT_PATH))
+        print(f"Saved experiment results to {RESULTS_PATH}")
 
 print(f"End of training experiments.")
 

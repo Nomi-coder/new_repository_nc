@@ -1,17 +1,22 @@
 import json
+import os
 from pathlib import Path
 
+import mlflow
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
+from dotenv import load_dotenv
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 
 REPORT_PATH = Path("artifacts/baseline_evaluation.json")
+MLFLOW_EXPERIMENT_NAME = "baseline-model"
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 def evaluate_regression_model(model, X, y_true, name="Model"):
@@ -73,50 +78,76 @@ def main():
     test_size = 0.2
     np.random.seed(random_state)
 
-    tips = sns.load_dataset('tips')
-    df = pd.get_dummies(tips, drop_first=True)
-    X = df.drop(columns=['tip'])
-    y = df['tip'].values
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+    if tracking_uri:
+        mlflow.set_tracking_uri(tracking_uri)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state
-    )
+    if "MLFLOW_EXPERIMENT_ID" not in os.environ:
+        mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    with mlflow.start_run(run_name="baseline-regression"):
+        tips = sns.load_dataset("tips")
+        df = pd.get_dummies(tips, drop_first=True)
+        X = df.drop(columns=["tip"])
+        y = df["tip"].values
 
-    metadata = {
-        "train_shape": X_train_scaled.shape,
-        "test_shape": X_test_scaled.shape,
-        "num_features": X_train_scaled.shape[1]
-    }
-    print(f"Pipeline Data Diagnostics: {metadata}")
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state
+        )
 
-    X_train_sm = sm.add_constant(X_train_scaled)
-    model_sm = sm.OLS(y_train, X_train_sm).fit()
-    print(model_sm.summary())
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
 
-    reg = LinearRegression()
-    reg.fit(X_train_scaled, y_train)
+        metadata = {
+            "train_shape": X_train_scaled.shape,
+            "test_shape": X_test_scaled.shape,
+            "num_features": X_train_scaled.shape[1],
+        }
+        print(f"Pipeline Data Diagnostics: {metadata}")
 
-    baseline_metrics = evaluate_regression_model(
-        reg, X_test_scaled, y_test, name="Scikit-Learn OLS"
-    )
-    print("--- Standard Evaluation Output ---")
-    for metric, value in baseline_metrics.items():
-        print(f"{metric}: {value}")
+        X_train_sm = sm.add_constant(X_train_scaled)
+        model_sm = sm.OLS(y_train, X_train_sm).fit()
+        print(model_sm.summary())
 
-    write_evaluation_report(
-        reg,
-        baseline_metrics,
-        X.columns,
-        X_train_scaled.shape,
-        X_test_scaled.shape,
-        test_size,
-        random_state,
-    )
-    print(f"Saved baseline evaluation report to {REPORT_PATH}")
+        reg = LinearRegression()
+        reg.fit(X_train_scaled, y_train)
+
+        baseline_metrics = evaluate_regression_model(
+            reg, X_test_scaled, y_test, name="Scikit-Learn OLS"
+        )
+        print("--- Standard Evaluation Output ---")
+        for metric, value in baseline_metrics.items():
+            print(f"{metric}: {value}")
+
+        write_evaluation_report(
+            reg,
+            baseline_metrics,
+            X.columns,
+            X_train_scaled.shape,
+            X_test_scaled.shape,
+            test_size,
+            random_state,
+        )
+        mlflow.log_params(
+            {
+                "test_size": test_size,
+                "random_state": random_state,
+                "num_features": metadata["num_features"],
+                "train_rows": metadata["train_shape"][0],
+                "test_rows": metadata["test_shape"][0],
+            }
+        )
+        mlflow.log_metrics(
+            {
+                "test_mean_squared_error": baseline_metrics[
+                    "test_mean_squared_error"
+                ],
+                "test_r_squared": baseline_metrics["test_r_squared"],
+            }
+        )
+        mlflow.log_artifact(str(REPORT_PATH))
+        print(f"Saved baseline evaluation report to {REPORT_PATH}")
 
 
 if __name__ == "__main__":
