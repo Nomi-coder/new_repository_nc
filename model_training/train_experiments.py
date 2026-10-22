@@ -160,22 +160,25 @@ def main() -> None:
         )
         for result in results:
             experiment_number = result["experiment"]
-            mlflow.log_params(
-                {
-                    f"experiment_{experiment_number}_{name}": value
-                    for name, value in result["parameters"].items()
-                }
-            )
-            mlflow.log_metrics(
-                {
-                    f"experiment_{experiment_number}_test_mean_squared_error": (
-                        result["test_mean_squared_error"]
-                    ),
-                    f"experiment_{experiment_number}_test_r_squared": (
-                        result["test_r_squared"]
-                    ),
-                }
-            )
+            with mlflow.start_run(
+                run_name=f"experiment-{experiment_number}",
+                nested=True,
+            ):
+                mlflow.log_params(
+                    {
+                        "experiment": experiment_number,
+                        **result["parameters"],
+                    }
+                )
+                mlflow.log_metrics(
+                    {
+                        "test_mean_squared_error": result[
+                            "test_mean_squared_error"
+                        ],
+                        "test_r_squared": result["test_r_squared"],
+                    }
+                )
+                mlflow.log_dict(result, "experiment_result.json")
 
         mlflow.log_metrics(
             {

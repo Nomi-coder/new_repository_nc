@@ -1,0 +1,105 @@
+{
+  "data": {
+    "train_shape": [
+      195,
+      8
+    ],
+    "test_shape": [
+      49,
+      8
+    ],
+    "num_features": 8
+  },
+  "experiments": [
+    {
+      "experiment": 1,
+      "parameters": {
+        "fit_intercept": true,
+        "positive": false
+      },
+      "intercept": 3.0877948717948724,
+      "coefficients": [
+        0.8284320874441264,
+        0.2190731506626236,
+        -0.01373424769035677,
+        0.09358067552478477,
+        0.050698909936950504,
+        -0.0029090520516777464,
+        0.05977623645429906,
+        -0.04224499051643544
+      ],
+      "model_name": "Experiment 1",
+      "test_mean_squared_error": 0.7034,
+      "test_r_squared": 0.4373
+    },
+    {
+      "experiment": 2,
+      "parameters": {
+        "fit_intercept": false,
+        "positive": false
+      },
+      "intercept": 0.0,
+      "coefficients": [
+        0.8284320874441273,
+        0.21907315066262245,
+        -0.01373424769035669,
+        0.09358067552478452,
+        0.05069890993694954,
+        -0.0029090520516806043,
+        0.059776236454296854,
+        -0.04224499051643322
+      ],
+      "model_name": "Experiment 2",
+      "test_mean_squared_error": 8.7987,
+      "test_r_squared": -6.0391
+    },
+    {
+      "experiment": 3,
+      "parameters": {
+        "fit_intercept": true,
+        "positive": true
+      },
+      "intercept": 3.0877948717948724,
+      "coefficients": [
+        0.8205514990528147,
+        0.22185641341369136,
+        0.0,
+        0.09762183451124486,
+        0.05212638546365751,
+        0.0,
+        0.045767151910059846,
+        0.0
+      ],
+      "model_name": "Experiment 3",
+      "test_mean_squared_error": 0.6916,
+      "test_r_squared": 0.4467
+    }
+  ],
+  "best_experiment": {
+    "experiment": 3,
+    "parameters": {
+      "fit_intercept": true,
+      "positive": true
+    },
+    "intercept": 3.0877948717948724,
+    "coefficients": [
+      0.8205514990528147,
+      0.22185641341369136,
+      0.0,
+      0.09762183451124486,
+      0.05212638546365751,
+      0.0,
+      0.045767151910059846,
+      0.0
+    ],
+    "model_name": "Experiment 3",
+    "test_mean_squared_error": 0.6916,
+    "test_r_squared": 0.4467
+  },
+  "best_model_parameters": {
+    "fit_intercept": true,
+    "positive": true
+  },
+  "best_model_artifact": "artifacts/best_model.joblib",
+  "ols_summary": "                            OLS Regression Results                            \n==============================================================================\nDep. Variable:                      y   R-squared:                       0.458\nModel:                            OLS   Adj. R-squared:                  0.435\nMethod:                 Least Squares   F-statistic:                     19.67\nDate:                Thu, 22 Oct 2026   Prob (F-statistic):           2.50e-21\nTime:                        14:22:59   Log-Likelihood:                -286.05\nNo. Observations:                 195   AIC:                             590.1\nDf Residuals:                     186   BIC:                             619.5\nDf Model:                           8                                         \nCovariance Type:            nonrobust                                         \n==============================================================================\n                 coef    std err          t      P>|t|      [0.025      0.975]\n------------------------------------------------------------------------------\nconst          3.0878      0.077     40.140      0.000       2.936       3.240\nx1             0.8284      0.098      8.425      0.000       0.634       1.022\nx2             0.2191      0.097      2.262      0.025       0.028       0.410\nx3            -0.0137      0.079     -0.174      0.862      -0.170       0.142\nx4             0.0936      0.083      1.121      0.264      -0.071       0.258\nx5             0.0507      0.119      0.426      0.671      -0.184       0.285\nx6            -0.0029      0.247     -0.012      0.991      -0.490       0.484\nx7             0.0598      0.239      0.250      0.803      -0.412       0.532\nx8            -0.0422      0.215     -0.197      0.844      -0.466       0.382\n==============================================================================\nOmnibus:                       21.860   Durbin-Watson:                   2.049\nProb(Omnibus):                  0.000   Jarque-Bera (JB):               38.874\nSkew:                           0.583   Prob(JB):                     3.62e-09\nKurtosis:                       4.850   Cond. No.                         7.47\n==============================================================================\n\nNotes:\n[1] Standard Errors assume that the covariance matrix of the errors is correctly specified."
+}

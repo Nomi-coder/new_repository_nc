@@ -1,0 +1,20 @@
+{
+  "experiment": 2,
+  "parameters": {
+    "fit_intercept": false,
+    "positive": false
+  },
+  "intercept": 0.0,
+  "coefficients": [
+    1.5537346871804485,
+    0.4919265099893313,
+    -0.029996642158586755,
+    0.011242163229013925,
+    0.07294928117945075,
+    0.03317443824941136,
+    -0.02716384184606371
+  ],
+  "model_name": "Experiment 2",
+  "test_mean_squared_error": 46.4134,
+  "test_r_squared": -8.9745
+}

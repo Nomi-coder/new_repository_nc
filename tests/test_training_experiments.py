@@ -42,6 +42,7 @@ def test_main_logs_metrics_and_json_and_model_artifacts(tmp_path, monkeypatch):
 
     previous_tracking_uri = mlflow.get_tracking_uri()
     try:
+        mlflow.set_tracking_uri(f"sqlite:///{tmp_path / 'mlflow.db'}")
         mlflow.set_experiment("training-experiments")
         experiment_id = mlflow.get_experiment_by_name(
             "training-experiments"
@@ -51,20 +52,43 @@ def test_main_logs_metrics_and_json_and_model_artifacts(tmp_path, monkeypatch):
         mlflow.flush_trace_async_logging()
 
         runs = mlflow.search_runs(experiment_ids=[experiment_id])
-        assert len(runs) == 1
-        run = runs.iloc[0]
-        artifacts = mlflow.MlflowClient().list_artifacts(run["run_id"])
+        parent_run = runs.loc[
+            runs["tags.mlflow.runName"] == "linear-regression-experiments"
+        ].iloc[0]
+        child_runs = runs.loc[
+            runs["tags.mlflow.parentRunId"] == parent_run["run_id"]
+        ]
+        client = mlflow.MlflowClient()
+        child_artifacts = {
+            run["tags.mlflow.runName"]: {
+                artifact.path for artifact in client.list_artifacts(run["run_id"])
+            }
+            for _, run in child_runs.iterrows()
+        }
+        parent_artifacts = {
+            artifact.path for artifact in client.list_artifacts(parent_run["run_id"])
+        }
     finally:
         mlflow.set_tracking_uri(previous_tracking_uri)
 
     report = json.loads(results_path.read_text(encoding="utf-8"))
     assert len(report["experiments"]) == 3
     assert np.isclose(
-        run["metrics.best_test_mean_squared_error"],
+        parent_run["metrics.best_test_mean_squared_error"],
         report["best_experiment"]["test_mean_squared_error"],
     )
-    assert run["params.experiment_1_fit_intercept"] == "True"
-    assert {artifact.path for artifact in artifacts} >= {
+    assert len(child_runs) == 3
+    first_experiment = child_runs.loc[
+        child_runs["tags.mlflow.runName"] == "experiment-1"
+    ].iloc[0]
+    assert first_experiment["params.fit_intercept"] == "True"
+    assert first_experiment["params.positive"] == "False"
+    assert np.isclose(
+        first_experiment["metrics.test_mean_squared_error"],
+        report["experiments"][0]["test_mean_squared_error"],
+    )
+    assert child_artifacts["experiment-1"] == {"experiment_result.json"}
+    assert parent_artifacts >= {
         "experiment_results.json",
         "best_model.joblib",
     }

@@ -14,6 +14,12 @@ The script uses the same Seaborn `tips` data and preprocessing pipeline as
 intercept and positivity settings, printing each experiment's settings,
 learned coefficients, and test metrics.
 
+Each execution creates a named parent MLflow run and one nested child run for
+each model configuration. Each child independently logs its parameters,
+test metrics, and `experiment_result.json`; the parent run logs the best-result
+summary, `experiment_results.json`, and `best_model.joblib`. The JSON report is
+also written to `artifacts/experiment_results.json`.
+
 The repository-level `.env` configures the MLflow tracking server for the
 training scripts:
 
@@ -21,9 +27,9 @@ training scripts:
 MLFLOW_TRACKING_URI=http://localhost:5000
 ```
 
-`mlflow_config.py` loads that shared setting from `.env`. You can also export
-the variable in your shell to override it for all Python processes launched
-from that shell:
+Each training script loads the shared tracking setting from `.env`. You can
+also export the variable in your shell to override it for all Python processes
+launched from that shell:
 
 ```bash
 set -a
