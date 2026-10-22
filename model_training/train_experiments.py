@@ -12,6 +12,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+# Naomi's second change
 
 EXPERIMENTS = (
     {"fit_intercept": True, "positive": False},
